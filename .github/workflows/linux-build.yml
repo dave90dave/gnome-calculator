@@ -1,0 +1,48 @@
+name: Linux build and regression
+on:
+  push:
+    branches: [verification/date-calculator, bounty/date-calculator]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y valac gcc gettext itstool libgtk-3-dev libgtk-3-bin libgtksourceview-4-dev libmpc-dev libmpfr-dev libsoup2.4-dev libxml2-dev libgee-0.8-dev libhandy-1-dev meson ninja-build libgirepository1.0-dev xvfb dbus-x11 at-spi2-core
+      - name: Build complete application
+        run: |
+          meson setup _build -Dui-tests=true
+          meson compile -C _build
+          glib-compile-schemas data
+      - name: Run date and GTK integration tests
+        env:
+          GSETTINGS_SCHEMA_DIR: ${{ github.workspace }}/data
+          GSETTINGS_BACKEND: memory
+          DATE_TEST_SCREENSHOTS: ${{ github.workspace }}/_build/date-screenshots
+        run: |
+          for zone in UTC America/New_York Europe/Vilnius; do
+            TZ="$zone" xvfb-run -a dbus-run-session -- meson test -C _build 'Date calculator' 'Date dialog' --print-errorlogs
+          done
+      - name: Run complete existing regression suite
+        env:
+          GSETTINGS_SCHEMA_DIR: ${{ github.workspace }}/data
+          GSETTINGS_BACKEND: memory
+        run: xvfb-run -a dbus-run-session -- meson test -C _build --print-errorlogs
+      - name: Save GTK examples and test evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: date-test-evidence
+          path: |
+            _build/date-screenshots
+            _build/meson-logs/testlog.txt
+          retention-days: 14

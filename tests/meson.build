@@ -1,5 +1,36 @@
 if not get_option ('disable-ui')
 
+date_test = executable('test-date-calculator',
+  ['test-date-calculator.vala'],
+  dependencies: libcalculator_deps,
+  link_with: [libcalculator, lib_mpfrg],
+  include_directories: include_directories('../lib'),
+)
+test('Date calculator', date_test)
+
+if get_option('ui-tests')
+date_window_sources = []
+foreach source : gnome_calculator_vala_sources
+  if source != 'gnome-calculator.vala'
+    # Keep generated C paths local with Meson 0.61 / Vala 0.56.
+    date_window_sources += configure_file(
+      input: '../src/' + source,
+      output: source,
+      copy: true,
+    )
+  endif
+endforeach
+date_dialog_test = executable('test-date-dialog',
+  ['test-date-dialog.vala', date_window_sources, gnome_calculator_resources],
+  dependencies: gnome_calculator_deps,
+  link_with: [libcalculator, lib_mpfrg],
+  include_directories: gnome_calculator_includes,
+  vala_args: gnome_calculator_vala_flags,
+  c_args: gnome_calculator_c_flags,
+)
+test('Date dialog', date_dialog_test, env: ['LC_ALL=C', 'LANGUAGE=C'])
+endif
+
 # Common
 gnome_calculator_tests_deps = [
   gtk,
